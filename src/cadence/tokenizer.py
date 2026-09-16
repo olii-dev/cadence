@@ -102,7 +102,7 @@ class MidiTokenizer:
                         max_dur = self.config.positions_per_beat * self.config.max_duration_beats
                         events.append(Event(start, "note", (msg.note, velocity, min(duration, max_dur), program, msg.channel == 9)))
         order = {"meter": 0, "tempo": 1, "note": 2}
-        return sorted(set(events), key=lambda e: (e.tick, order[e.kind], e.values))
+        return sorted(events, key=lambda e: (e.tick, order[e.kind], e.values))
 
     def encode(self, midi_or_path: mido.MidiFile | str | Path) -> list[str]:
         midi = midi_or_path if isinstance(midi_or_path, mido.MidiFile) else mido.MidiFile(midi_or_path)

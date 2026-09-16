@@ -30,3 +30,14 @@ def test_id_round_trip():
     tokenizer = MidiTokenizer()
     ids = tokenizer.encode_ids(sample_midi())
     assert tokenizer.encode(tokenizer.decode(ids)) == tokenizer.encode(sample_midi())
+
+
+def test_long_time_shift_and_overlapping_same_pitch_survive():
+    midi = mido.MidiFile(ticks_per_beat=480); track = mido.MidiTrack(); midi.tracks.append(track)
+    track.append(mido.Message("note_on", note=60, velocity=64, time=8000))
+    track.append(mido.Message("note_on", note=60, velocity=100, time=120))
+    track.append(mido.Message("note_off", note=60, velocity=0, time=240))
+    track.append(mido.Message("note_off", note=60, velocity=0, time=240))
+    tok = MidiTokenizer(); encoded = tok.encode(midi)
+    assert encoded.count("PITCH_60") == 2
+    assert tok.encode(tok.decode(encoded)) == encoded
