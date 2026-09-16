@@ -13,6 +13,7 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 cadence-tokenize = "cadence.dataset:main"
 cadence-generate = "cadence.generate:main"
 cadence-train = "cadence.train:main"
+cadence-merge-shards = "cadence.merge_shards:main"
 
 [build-system]
 requires = ["hatchling"]
