@@ -52,7 +52,7 @@ PY
   if kaggle datasets files "$owner_slug" >/dev/null 2>&1; then
     kaggle datasets version -p "$SHARDS" -m "$message" --dir-mode zip -q
   else
-    kaggle datasets create -p "$SHARDS" --private --dir-mode zip -q
+    kaggle datasets create -p "$SHARDS" --dir-mode zip -q
   fi
   printf 'Persisted %s completed shards to %s\n' "$completed" "$owner_slug"
 }
