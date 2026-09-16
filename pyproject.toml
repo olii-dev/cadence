@@ -12,6 +12,7 @@ dev = ["pytest>=8.0", "ruff>=0.6"]
 [project.scripts]
 cadence-tokenize = "cadence.dataset:main"
 cadence-generate = "cadence.generate:main"
+cadence-train = "cadence.train:main"
 
 [build-system]
 requires = ["hatchling"]
