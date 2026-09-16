@@ -77,8 +77,14 @@ class MidiTokenizer:
     def extract_events(self, midi: mido.MidiFile) -> list[Event]:
         events: list[Event] = []
         voice_keys = []
+        marked_tracks = {}
         for source_track, track in enumerate(midi.tracks):
             for message in track:
+                if message.type == "track_name" and message.name.startswith("cadence_track_"):
+                    try:
+                        marked_tracks[source_track] = int(message.name.rsplit("_", 1)[1])
+                    except ValueError:
+                        pass
                 if message.type in ("note_on", "note_off"):
                     key = (source_track, message.channel)
                     if key not in voice_keys:
@@ -109,7 +115,7 @@ class MidiTokenizer:
                         start, velocity, program = open_notes[key].pop(0)
                         duration = max(1, grid - start)
                         max_dur = self.config.positions_per_beat * self.config.max_duration_beats
-                        events.append(Event(start, "note", (msg.note, velocity, min(duration, max_dur), program, msg.channel == 9, min(canonical_voice.get((track_index, msg.channel), 0), 127))))
+                        events.append(Event(start, "note", (msg.note, velocity, min(duration, max_dur), program, msg.channel == 9, min(marked_tracks.get(track_index, canonical_voice.get((track_index, msg.channel), 0)), 127))))
         order = {"meter": 0, "tempo": 1, "note": 2}
         def sort_key(event: Event):
             if event.kind != "note":
@@ -176,19 +182,20 @@ class MidiTokenizer:
                     duration = int(seq[i + 2].rsplit("_", 1)[1])
                     channel = 9 if drums else (current_track % 15)
                     if channel >= 9 and not drums: channel += 1
-                    key = (current_track, drums)
+                    key = (current_track, current_program, drums)
                     track_events = instrument_tracks.setdefault(key, [])
-                    if not drums:
-                        track_events.append((cursor, mido.Message("program_change", channel=channel, program=current_program, time=0)))
                     track_events.append((cursor, mido.Message("note_on", channel=channel, note=pitch, velocity=velocity, time=0)))
                     track_events.append((cursor + duration, mido.Message("note_off", channel=channel, note=pitch, velocity=0, time=0)))
                     i += 2
             i += 1
         self._write_track(meta_track, meta_events, ticks_per_beat)
-        for (track_index, is_drums), events in sorted(instrument_tracks.items()):
+        for (track_index, program, is_drums), events in sorted(instrument_tracks.items()):
             track = mido.MidiTrack(); midi.tracks.append(track)
-            channel = 9 if is_drums else track_index % 15
+            channel = 9 if is_drums else (track_index * 7 + program) % 15
             if channel >= 9 and not is_drums: channel += 1
+            track.append(mido.MetaMessage("track_name", name=f"cadence_track_{track_index}", time=0))
+            if not is_drums:
+                track.append(mido.Message("program_change", channel=channel, program=program, time=0))
             for _, message in events:
                 message.channel = channel
             event_order = {"program_change": 0, "note_off": 1, "note_on": 2}
