@@ -11,7 +11,9 @@ def merge(inputs:list[Path],output:Path):
     try:
         for shard in inputs:
             for split in SPLITS:
-                data=np.load(shard/f"{split}.npy",mmap_mode="r"); cursor=0
+                path = shard / f"{split}.bin"
+                data = np.memmap(path, dtype=np.uint16, mode="r") if path.stat().st_size else np.array([], dtype=np.uint16)
+                cursor=0
                 lines=(shard/f"{split}.jsonl").read_text().splitlines()
                 for line in lines:
                     item=json.loads(line); length=item["length"]

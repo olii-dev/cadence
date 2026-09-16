@@ -4,9 +4,9 @@ import numpy as np
 from cadence.merge_shards import merge
 
 def make_shard(root:Path,name:str,digest:str,values):
-    p=root/name; p.mkdir(); np.save(p/'train.npy',np.array(values,dtype=np.uint16))
+    p=root/name; p.mkdir(); np.array(values,dtype=np.uint16).tofile(p/'train.bin')
     (p/'train.jsonl').write_text(json.dumps({'source':name,'digest':digest,'offset':0,'length':len(values)-1})+'\n')
-    for s in ('validation','test'): np.save(p/f'{s}.npy',np.array([],dtype=np.uint16)); (p/f'{s}.jsonl').write_text('')
+    for s in ('validation','test'): np.array([],dtype=np.uint16).tofile(p/f'{s}.bin'); (p/f'{s}.jsonl').write_text('')
     return p
 
 def test_merge_deduplicates_and_rewrites_offsets(tmp_path):

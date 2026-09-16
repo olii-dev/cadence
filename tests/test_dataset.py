@@ -22,7 +22,7 @@ def test_resumable_range_and_outputs(tmp_path):
     assert summary['source_total'] == 3
     assert summary['range_start'] == 1 and summary['range_end'] == 2
     assert sum(len((out/f'{split}.jsonl').read_text().splitlines()) for split in ('train','validation','test')) == 1
-    assert sum(np.load(out/f'{split}.npy').size for split in ('train','validation','test')) > 0
+    assert sum(np.fromfile(out/f'{split}.bin', dtype=np.uint16).size for split in ('train','validation','test')) > 0
 
 
 def test_corrupt_short_meta_event_is_rejected_not_fatal(tmp_path):
