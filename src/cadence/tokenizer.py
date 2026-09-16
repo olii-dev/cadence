@@ -49,6 +49,7 @@ class MidiTokenizer:
         tokens += [f"PITCH_{i}" for i in range(128)]
         tokens += [f"VELOCITY_{i}" for i in range(c.velocity_bins)]
         tokens += [f"DURATION_{i}" for i in range(1, c.positions_per_beat * c.max_duration_beats + 1)]
+        tokens += [f"TRACK_{i}" for i in range(128)]
         tokens += [f"PROGRAM_{i}" for i in range(128)] + ["DRUMS"]
         tokens += [f"TEMPO_{i}" for i in range(c.tempo_min, c.tempo_max + 1, c.tempo_step)]
         tokens += [f"TIME_SIGNATURE_{n}_{d}" for d in (1, 2, 4, 8, 16) for n in range(1, 17)]
@@ -75,6 +76,14 @@ class MidiTokenizer:
 
     def extract_events(self, midi: mido.MidiFile) -> list[Event]:
         events: list[Event] = []
+        voice_keys = []
+        for source_track, track in enumerate(midi.tracks):
+            for message in track:
+                if message.type in ("note_on", "note_off"):
+                    key = (source_track, message.channel)
+                    if key not in voice_keys:
+                        voice_keys.append(key)
+        canonical_voice = {source: index for index, source in enumerate(voice_keys)}
         for track_index, track in enumerate(midi.tracks):
             absolute = 0
             program_by_channel = {ch: 0 for ch in range(16)}
@@ -100,9 +109,14 @@ class MidiTokenizer:
                         start, velocity, program = open_notes[key].pop(0)
                         duration = max(1, grid - start)
                         max_dur = self.config.positions_per_beat * self.config.max_duration_beats
-                        events.append(Event(start, "note", (msg.note, velocity, min(duration, max_dur), program, msg.channel == 9)))
+                        events.append(Event(start, "note", (msg.note, velocity, min(duration, max_dur), program, msg.channel == 9, min(canonical_voice.get((track_index, msg.channel), 0), 127))))
         order = {"meter": 0, "tempo": 1, "note": 2}
-        return sorted(events, key=lambda e: (e.tick, order[e.kind], e.values))
+        def sort_key(event: Event):
+            if event.kind != "note":
+                return (event.tick, order[event.kind], event.values)
+            pitch, velocity, duration, program, drums, track = event.values
+            return (event.tick, order[event.kind], track, drums, program, pitch, duration, velocity)
+        return sorted(events, key=sort_key)
 
     def encode(self, midi_or_path: mido.MidiFile | str | Path) -> list[str]:
         midi = midi_or_path if isinstance(midi_or_path, mido.MidiFile) else mido.MidiFile(midi_or_path)
@@ -121,9 +135,9 @@ class MidiTokenizer:
             elif event.kind == "meter":
                 tokens.append(f"TIME_SIGNATURE_{event.values[0]}_{event.values[1]}")
             else:
-                pitch, velocity, duration, program, drums = event.values
+                pitch, velocity, duration, program, drums, track_index = event.values
                 tokens.extend([
-                    "DRUMS" if drums else f"PROGRAM_{program}",
+                    f"TRACK_{track_index}", "DRUMS" if drums else f"PROGRAM_{program}",
                     f"PITCH_{pitch}", f"VELOCITY_{velocity}", f"DURATION_{duration}",
                 ])
         tokens.append("EOS")
@@ -138,7 +152,7 @@ class MidiTokenizer:
         meta_track = mido.MidiTrack(); midi.tracks.append(meta_track)
         instrument_tracks: dict[tuple[int, bool], list[tuple[int, mido.Message]]] = {}
         meta_events: list[tuple[int, mido.MetaMessage]] = []
-        cursor = 0; current_program = 0; drums = False; i = 0
+        cursor = 0; current_program = 0; current_track = 0; drums = False; i = 0
         while i < len(seq):
             token = seq[i]
             if token.startswith("TIME_SHIFT_"):
@@ -149,6 +163,8 @@ class MidiTokenizer:
             elif token.startswith("TIME_SIGNATURE_"):
                 _, _, n, d = token.split("_")
                 meta_events.append((cursor, mido.MetaMessage("time_signature", numerator=int(n), denominator=int(d), time=0)))
+            elif token.startswith("TRACK_"):
+                current_track = int(token.rsplit("_", 1)[1])
             elif token == "DRUMS":
                 drums = True; current_program = 0
             elif token.startswith("PROGRAM_"):
@@ -158,22 +174,25 @@ class MidiTokenizer:
                     pitch = int(token.rsplit("_", 1)[1])
                     velocity = self._velocity_value(int(seq[i + 1].rsplit("_", 1)[1]))
                     duration = int(seq[i + 2].rsplit("_", 1)[1])
-                    channel = 9 if drums else (current_program % 15)
+                    channel = 9 if drums else (current_track % 15)
                     if channel >= 9 and not drums: channel += 1
-                    key = (current_program, drums)
+                    key = (current_track, drums)
                     track_events = instrument_tracks.setdefault(key, [])
+                    if not drums:
+                        track_events.append((cursor, mido.Message("program_change", channel=channel, program=current_program, time=0)))
                     track_events.append((cursor, mido.Message("note_on", channel=channel, note=pitch, velocity=velocity, time=0)))
                     track_events.append((cursor + duration, mido.Message("note_off", channel=channel, note=pitch, velocity=0, time=0)))
                     i += 2
             i += 1
         self._write_track(meta_track, meta_events, ticks_per_beat)
-        for (program, is_drums), events in sorted(instrument_tracks.items()):
+        for (track_index, is_drums), events in sorted(instrument_tracks.items()):
             track = mido.MidiTrack(); midi.tracks.append(track)
-            channel = 9 if is_drums else program % 15
+            channel = 9 if is_drums else track_index % 15
             if channel >= 9 and not is_drums: channel += 1
-            if not is_drums:
-                track.append(mido.Message("program_change", channel=channel, program=program, time=0))
-            self._write_track(track, sorted(events, key=lambda x: (x[0], x[1].type == "note_on", x[1].note)), ticks_per_beat)
+            for _, message in events:
+                message.channel = channel
+            event_order = {"program_change": 0, "note_off": 1, "note_on": 2}
+            self._write_track(track, sorted(events, key=lambda x: (x[0], event_order[x[1].type], getattr(x[1], "note", -1))), ticks_per_beat)
         return midi
 
     def _write_track(self, track, events, ticks_per_beat: int) -> None:

@@ -41,3 +41,16 @@ def test_long_time_shift_and_overlapping_same_pitch_survive():
     tok = MidiTokenizer(); encoded = tok.encode(midi)
     assert encoded.count("PITCH_60") == 2
     assert tok.encode(tok.decode(encoded)) == encoded
+
+
+def test_program_changes_on_one_voice_survive():
+    midi = mido.MidiFile(ticks_per_beat=480); track = mido.MidiTrack(); midi.tracks.append(track)
+    track.append(mido.Message("program_change", program=0, channel=0, time=0))
+    track.append(mido.Message("note_on", note=60, velocity=72, channel=0, time=0))
+    track.append(mido.Message("note_off", note=60, velocity=0, channel=0, time=480))
+    track.append(mido.Message("program_change", program=48, channel=0, time=0))
+    track.append(mido.Message("note_on", note=67, velocity=84, channel=0, time=0))
+    track.append(mido.Message("note_off", note=67, velocity=0, channel=0, time=480))
+    tok = MidiTokenizer(); encoded = tok.encode(midi)
+    assert "PROGRAM_0" in encoded and "PROGRAM_48" in encoded
+    assert tok.encode(tok.decode(encoded)) == encoded
