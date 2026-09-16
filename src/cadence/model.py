@@ -56,9 +56,11 @@ class MusicTransformer(nn.Module):
         logits=self.head(self.norm(x)); loss=None if targets is None else F.cross_entropy(logits.flatten(0,1),targets.flatten())
         return logits,loss
     @torch.no_grad()
-    def generate(self,ids,max_new_tokens=512,temperature=1.0,top_k=50,eos_id=None):
+    def generate(self,ids,max_new_tokens=512,temperature=1.0,top_k=50,eos_id=None,logits_processor=None):
         for _ in range(max_new_tokens):
             logits,_=self(ids[:,-self.cfg.context_length:]); logits=logits[:,-1]/max(temperature,1e-5)
+            if logits_processor is not None:
+                logits = logits_processor(ids, logits)
             if top_k: logits[logits < torch.topk(logits,min(top_k,logits.size(-1))).values[:,-1,None]]=float('-inf')
             next_id=torch.multinomial(F.softmax(logits,dim=-1),1); ids=torch.cat((ids,next_id),dim=1)
             if eos_id is not None and torch.all(next_id==eos_id): break

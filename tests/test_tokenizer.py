@@ -64,3 +64,14 @@ def test_invalid_zero_tempo_is_ignored():
     tok = MidiTokenizer(); tokens = tok.encode(midi)
     assert not any(token.startswith("TEMPO_") for token in tokens)
     assert tok.encode(tok.decode(tokens)) == tokens
+
+
+def test_generation_grammar_requires_complete_note_tuple():
+    tok = MidiTokenizer()
+    def names(seq): return {tok.vocab[i] for i in tok.allowed_next_ids(seq)}
+    assert "TRACK_0" in names(["BOS"]) and "PITCH_60" not in names(["BOS"])
+    assert "PROGRAM_0" in names(["BOS", "TRACK_0"])
+    assert "PITCH_60" in names(["BOS", "TRACK_0", "PROGRAM_0"])
+    assert "VELOCITY_0" in names(["BOS", "TRACK_0", "PROGRAM_0", "PITCH_60"])
+    assert "DURATION_1" in names(["BOS", "TRACK_0", "PROGRAM_0", "PITCH_60", "VELOCITY_0"])
+    assert "TIME_SHIFT_1" in names(["BOS", "TRACK_0", "PROGRAM_0", "PITCH_60", "VELOCITY_0", "DURATION_1"])

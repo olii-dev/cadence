@@ -152,6 +152,44 @@ class MidiTokenizer:
     def encode_ids(self, midi_or_path: mido.MidiFile | str | Path) -> list[int]:
         return [self.token_to_id[token] for token in self.encode(midi_or_path)]
 
+
+    def generation_state(self, tokens: Iterable[str | int]) -> str:
+        """Return the next grammar slot for a possibly incomplete generated stream."""
+        state = "event"
+        for raw in tokens:
+            token = self.vocab[raw] if isinstance(raw, int) else raw
+            if token in ("BOS", "PAD", "UNK"):
+                continue
+            if token == "EOS":
+                state = "ended"
+            elif state == "event":
+                if token.startswith("TRACK_"):
+                    state = "instrument"
+                elif token.startswith(("TIME_SHIFT_", "TEMPO_", "TIME_SIGNATURE_")):
+                    state = "event"
+            elif state == "instrument" and (token == "DRUMS" or token.startswith("PROGRAM_")):
+                state = "pitch"
+            elif state == "pitch" and token.startswith("PITCH_"):
+                state = "velocity"
+            elif state == "velocity" and token.startswith("VELOCITY_"):
+                state = "duration"
+            elif state == "duration" and token.startswith("DURATION_"):
+                state = "event"
+        return state
+
+    def allowed_next_ids(self, tokens: Iterable[str | int]) -> list[int]:
+        state = self.generation_state(tokens)
+        prefixes = {
+            "instrument": ("PROGRAM_", "DRUMS"),
+            "pitch": ("PITCH_",), "velocity": ("VELOCITY_",),
+            "duration": ("DURATION_",),
+            "event": ("TIME_SHIFT_", "TEMPO_", "TIME_SIGNATURE_", "TRACK_", "EOS"),
+        }
+        if state == "ended":
+            return [self.token_to_id["EOS"]]
+        wanted = prefixes[state]
+        return [i for i, token in enumerate(self.vocab) if any(token == p or token.startswith(p) for p in wanted)]
+
     def decode(self, tokens: Iterable[str | int], ticks_per_beat: int = 480) -> mido.MidiFile:
         seq = [self.vocab[t] if isinstance(t, int) else t for t in tokens]
         midi = mido.MidiFile(ticks_per_beat=ticks_per_beat)
