@@ -99,7 +99,7 @@ class MidiTokenizer:
                 grid = self._grid_tick(absolute, midi.ticks_per_beat)
                 if msg.type == "program_change":
                     program_by_channel[msg.channel] = msg.program
-                elif msg.type == "set_tempo":
+                elif msg.type == "set_tempo" and msg.tempo > 0:
                     events.append(Event(grid, "tempo", (self._tempo_bin(msg.tempo),)))
                 elif msg.type == "time_signature":
                     if msg.denominator in (1, 2, 4, 8, 16) and 1 <= msg.numerator <= 16:

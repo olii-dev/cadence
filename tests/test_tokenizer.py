@@ -54,3 +54,13 @@ def test_program_changes_on_one_voice_survive():
     tok = MidiTokenizer(); encoded = tok.encode(midi)
     assert "PROGRAM_0" in encoded and "PROGRAM_48" in encoded
     assert tok.encode(tok.decode(encoded)) == encoded
+
+
+def test_invalid_zero_tempo_is_ignored():
+    midi = mido.MidiFile(ticks_per_beat=480); track = mido.MidiTrack(); midi.tracks.append(track)
+    track.append(mido.MetaMessage("set_tempo", tempo=0, time=0))
+    track.append(mido.Message("note_on", note=60, velocity=80, time=0))
+    track.append(mido.Message("note_off", note=60, velocity=0, time=480))
+    tok = MidiTokenizer(); tokens = tok.encode(midi)
+    assert not any(token.startswith("TEMPO_") for token in tokens)
+    assert tok.encode(tok.decode(tokens)) == tokens
