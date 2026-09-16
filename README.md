@@ -1,6 +1,8 @@
 # Cadence
 
-A small symbolic-music transformer built and trained from scratch. Cadence learns MIDI as a language: notes, rhythm, instrumentation, dynamics, tempo, and meter become tokens for a GPT-style next-token model.
+A Lattice model by Oli Mebberson.
+
+Cadence is Lattice's small symbolic-music transformer, built and trained from scratch alongside the Quark and Spark model family. Cadence learns MIDI as a language: notes, rhythm, instrumentation, dynamics, tempo, and meter become tokens for a GPT-style next-token model.
 
 **No pretrained weights. No fine-tuning. No copied reference implementation code.** Papers and specifications inform the design; all implementation here is original.
 

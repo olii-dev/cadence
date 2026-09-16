@@ -23,3 +23,11 @@ def test_resumable_range_and_outputs(tmp_path):
     assert summary['range_start'] == 1 and summary['range_end'] == 2
     assert sum(len((out/f'{split}.jsonl').read_text().splitlines()) for split in ('train','validation','test')) == 1
     assert sum(np.load(out/f'{split}.npy').size for split in ('train','validation','test')) > 0
+
+
+def test_corrupt_short_meta_event_is_rejected_not_fatal(tmp_path):
+    source=tmp_path/'source'; source.mkdir()
+    # Valid MIDI header/track containing an invalid 1-byte time-signature meta event.
+    (source/'broken.mid').write_bytes(bytes.fromhex('4d546864000000060000000101e04d54726b0000000700ff58010100ff2f00'))
+    out=tmp_path/'out'; stats=build_dataset(source,out)
+    assert stats.broken == 1 and stats.accepted == 0

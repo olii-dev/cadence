@@ -57,7 +57,7 @@ def build_dataset(input_dir: Path, output_dir: Path, min_notes=16, max_tokens=13
             if digest in seen:
                 stats.duplicates += 1; continue
             seen.add(digest)
-        except (OSError, EOFError, ValueError, TypeError, KeyError, mido.KeySignatureError):
+        except (OSError, EOFError, ValueError, TypeError, KeyError, IndexError, ZeroDivisionError, mido.KeySignatureError):
             stats.broken += 1; continue
         # Content-hash assignment is stable across machines, traversal order, and resumable shards.
         split_bucket = int(digest[:8], 16) % 100
