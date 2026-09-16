@@ -72,7 +72,7 @@ def build_dataset(input_dir: Path, output_dir: Path, min_notes=16, max_tokens=13
             elif e.kind == "meter": meters[f"{e.values[0]}/{e.values[1]}"] += 1
             elif e.kind == "tempo": tempos[str(e.values[0])] += 1
     for split, songs in shards.items():
-        flat = np.concatenate([np.append(s, tokenizer.token_to_id["EOS"]) for s in songs]) if songs else np.array([], dtype=np.uint16)
+        flat = np.concatenate([np.append(s, np.uint16(tokenizer.token_to_id["EOS"])) for s in songs]) if songs else np.array([], dtype=np.uint16)
         flat.tofile(output_dir / f"{split}.bin")
         (output_dir / f"{split}.jsonl").write_text("\n".join(json.dumps(x) for x in manifests[split]))
     tokenizer.save_vocab(output_dir / "vocab.json")
