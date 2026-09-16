@@ -7,7 +7,6 @@ from dataclasses import asdict, dataclass
 from hashlib import sha256
 import json
 from pathlib import Path
-import random
 
 import mido
 import numpy as np
@@ -33,15 +32,15 @@ def canonical_digest(token_ids: list[int]) -> str:
     return sha256(np.asarray(token_ids, dtype=np.uint16).tobytes()).hexdigest()
 
 
-def build_dataset(input_dir: Path, output_dir: Path, min_notes=16, max_tokens=131072) -> DatasetStats:
+def build_dataset(input_dir: Path, output_dir: Path, min_notes=16, max_tokens=131072, start=0, limit=None) -> DatasetStats:
     tokenizer = MidiTokenizer()
-    paths = sorted(set(input_dir.rglob("*.mid")) | set(input_dir.rglob("*.midi")))
+    all_paths = sorted(set(input_dir.rglob("*.mid")) | set(input_dir.rglob("*.midi")))
+    paths = all_paths[start : start + limit if limit is not None else None]
     output_dir.mkdir(parents=True, exist_ok=True)
     shards = {split: [] for split in ("train", "validation", "test")}
     manifests = {split: [] for split in shards}
     stats = DatasetStats(discovered=len(paths)); seen = set()
     token_lengths = []; note_counts = []; instruments = Counter(); meters = Counter(); tempos = Counter()
-    rng = random.Random(1729)
     for path in tqdm(paths, desc="Tokenizing MIDI"):
         try:
             midi = mido.MidiFile(path, clip=False)
@@ -60,7 +59,9 @@ def build_dataset(input_dir: Path, output_dir: Path, min_notes=16, max_tokens=13
             seen.add(digest)
         except (OSError, EOFError, ValueError, TypeError, KeyError, mido.KeySignatureError):
             stats.broken += 1; continue
-        roll = rng.random(); split = "train" if roll < .98 else ("validation" if roll < .99 else "test")
+        # Content-hash assignment is stable across machines, traversal order, and resumable shards.
+        split_bucket = int(digest[:8], 16) % 100
+        split = "train" if split_bucket < 98 else ("validation" if split_bucket == 98 else "test")
         offset = sum(len(x) + 1 for x in shards[split])
         shards[split].append(np.asarray(ids, dtype=np.uint16))
         manifests[split].append({"source": str(path.relative_to(input_dir)), "digest": digest, "offset": offset, "length": len(ids)})
@@ -76,6 +77,8 @@ def build_dataset(input_dir: Path, output_dir: Path, min_notes=16, max_tokens=13
         (output_dir / f"{split}.jsonl").write_text("\n".join(json.dumps(x) for x in manifests[split]))
     tokenizer.save_vocab(output_dir / "vocab.json")
     summary = asdict(stats) | {
+        "source_total": len(all_paths), "range_start": start,
+        "range_end": start + len(paths),
         "vocab_size": len(tokenizer.vocab),
         "token_length_percentiles": np.percentile(token_lengths, [5, 25, 50, 75, 95]).tolist() if token_lengths else [],
         "note_count_percentiles": np.percentile(note_counts, [5, 25, 50, 75, 95]).tolist() if note_counts else [],
@@ -88,6 +91,8 @@ def build_dataset(input_dir: Path, output_dir: Path, min_notes=16, max_tokens=13
 def main():
     parser = argparse.ArgumentParser(); parser.add_argument("input", type=Path); parser.add_argument("output", type=Path)
     parser.add_argument("--min-notes", type=int, default=16); parser.add_argument("--max-tokens", type=int, default=131072)
-    args = parser.parse_args(); print(build_dataset(args.input, args.output, args.min_notes, args.max_tokens))
+    parser.add_argument("--start", type=int, default=0, help="sorted source-file offset for resumable preprocessing")
+    parser.add_argument("--limit", type=int, help="maximum source files in this shard")
+    args = parser.parse_args(); print(build_dataset(args.input, args.output, args.min_notes, args.max_tokens, args.start, args.limit))
 
 if __name__ == "__main__": main()
