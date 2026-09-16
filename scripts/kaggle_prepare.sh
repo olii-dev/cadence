@@ -4,6 +4,12 @@ ROOT=${1:-/kaggle/working/cadence-data}
 ARCHIVE="$ROOT/lmd_full.tar.gz"
 SOURCE="$ROOT/source"
 SHARDS="$ROOT/shards"
+# Remove only interrupted shard directories. A completed stats.json marker is never deleted.
+if [[ -d "$SHARDS" ]]; then
+  while IFS= read -r -d '' shard; do
+    [[ -f "$shard/stats.json" ]] || { echo "Removing incomplete shard: $shard"; rm -rf -- "$shard"; }
+  done < <(find "$SHARDS" -mindepth 1 -maxdepth 1 -type d -name 'shard-*' -print0)
+fi
 mkdir -p "$ROOT" "$SOURCE" "$SHARDS"
 if [[ ! -f "$ARCHIVE" ]]; then
   curl -fL --retry 4 --retry-delay 5 'http://hog.ee.columbia.edu/craffel/lmd/lmd_full.tar.gz' -o "$ARCHIVE"
