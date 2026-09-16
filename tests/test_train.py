@@ -94,3 +94,22 @@ def test_accumulation_validation_scheduler_checkpoints_and_resume(tmp_path):
     assert [row["step"] for row in resumed_meta["history"]] == [1, 2, 3, 4, 5]
     state = __import__("torch").load(resumed, map_location="cpu", weights_only=True)
     assert {"model", "optimizer", "step", "train_generator_state"} <= state.keys()
+
+
+def test_checkpoint_callback_runs_at_intermediate_and_final_steps(tmp_path):
+    data = np.tile(np.arange(31, dtype=np.uint16), 30)
+    path = tmp_path / "tokens.bin"
+    data.tofile(path)
+    seen = []
+    train(
+        path,
+        tmp_path / "run.pt",
+        ModelConfig(32, 16, 1, 2, 32, 0),
+        steps=3,
+        batch_size=2,
+        checkpoint_interval=2,
+        checkpoint_callback=lambda checkpoint, step: seen.append(
+            (checkpoint.name, step)
+        ),
+    )
+    assert seen == [("run.step-000002.pt", 2), ("run.pt", 3)]

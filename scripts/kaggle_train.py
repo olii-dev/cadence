@@ -9,6 +9,7 @@ from pathlib import Path
 import torch
 
 from cadence.model import ModelConfig
+from cadence.sampling import sample_checkpoint
 from cadence.train import train
 
 
@@ -19,6 +20,8 @@ def main():
     p.add_argument("output", type=Path)
     p.add_argument("--validation-data", type=Path)
     p.add_argument("--resume", type=Path)
+    p.add_argument("--sample-dir", type=Path)
+    p.add_argument("--sample-tokens", type=int, default=1024)
     a = p.parse_args()
     if not torch.cuda.is_available():
         raise SystemExit(
@@ -38,6 +41,13 @@ def main():
         ),
         flush=True,
     )
+
+    def sample(path, step):
+        if a.sample_dir:
+            sample_checkpoint(
+                path, a.sample_dir / f"step-{step:06d}", tokens=a.sample_tokens
+            )
+
     meta = train(
         a.data,
         a.output,
@@ -56,6 +66,7 @@ def main():
         device="cuda",
         mixed_precision=True,
         resume=a.resume,
+        checkpoint_callback=sample if a.sample_dir else None,
     )
     print(json.dumps(meta, indent=2))
 

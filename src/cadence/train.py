@@ -91,6 +91,7 @@ def train(
     checkpoint_interval=0,
     mixed_precision=False,
     resume: Path | None = None,
+    checkpoint_callback=None,
 ):
     if steps < 1 or batch_size < 1 or accumulation_steps < 1:
         raise ValueError("steps, batch_size, and accumulation_steps must be positive")
@@ -198,6 +199,8 @@ def train(
         metadata_temporary.replace(metadata_path)
         if not final:
             print(f"checkpoint={path}", flush=True)
+        if checkpoint_callback is not None:
+            checkpoint_callback(path, step)
         return metadata
 
     for step in range(start_step + 1, steps + 1):
