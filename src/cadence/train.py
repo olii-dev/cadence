@@ -19,9 +19,17 @@ def batches(tokens, batch_size, context, device, generator):
         yield x, y
 
 
+def open_tokens(data: Path):
+    if data.suffix == ".npy":
+        return np.load(data, mmap_mode="r")
+    if data.suffix == ".bin":
+        return np.memmap(data, dtype=np.uint16, mode="r")
+    raise ValueError("training data must be a .npy or raw uint16 .bin file")
+
+
 def train(data: Path, output: Path, cfg: ModelConfig, steps=1000, batch_size=8, learning_rate=3e-4, seed=1729, device="cpu"):
     torch.manual_seed(seed); generator=torch.Generator().manual_seed(seed)
-    tokens=np.load(data,mmap_mode="r"); stream=batches(tokens,batch_size,cfg.context_length,device,generator)
+    tokens=open_tokens(data); stream=batches(tokens,batch_size,cfg.context_length,device,generator)
     model=MusicTransformer(cfg).to(device); optimizer=torch.optim.AdamW(model.parameters(),lr=learning_rate,betas=(.9,.95),weight_decay=.1)
     losses=[]; started=time.time(); model.train()
     for step in range(1,steps+1):
