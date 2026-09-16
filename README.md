@@ -31,7 +31,7 @@ uv run pytest
 
 ## Data
 
-The planned corpus is the Lakh MIDI Dataset. The dataset is downloaded separately and is not redistributed by this repository. MIDI copyright status can vary by file; model releases and generated samples require a separate legal/data review.
+The planned corpus is the [Lakh MIDI Dataset](https://colinraffel.com/projects/lmd/), distributed by its curator under CC BY 4.0. Cadence does not redistribute the archive. Please cite Colin Raffel, *Learning-Based Methods for Comparing Sequences, with Applications to Audio-to-MIDI Alignment and Matching* (PhD thesis, 2016). The curator notes that he did not transcribe the MIDI files and that per-file authorship is often unavailable because MIDI copyright metadata is inconsistent. Training-data, model-release, and generated-sample review must therefore preserve that caveat rather than treating the collection-level license as perfect song-by-song provenance.
 
 ## License
 
