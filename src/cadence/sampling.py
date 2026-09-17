@@ -30,10 +30,12 @@ def sample_checkpoint(
     prompts: dict[str, list[str]] | None = None,
 ):
     """Render a fixed prompt suite to MIDI and optional WAV with a fixed RNG seed."""
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     state = torch.load(checkpoint, map_location="cpu", weights_only=True)
     cfg = ModelConfig(**state["config"])
     model = MusicTransformer(cfg)
     model.load_state_dict(state["model"])
+    model.to(device)
     model.eval()
     tokenizer = MidiTokenizer()
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -44,6 +46,7 @@ def sample_checkpoint(
         "tokens": tokens,
         "temperature": temperature,
         "top_k": top_k,
+        "device": str(device),
         "samples": [],
     }
     for index, (name, prompt) in enumerate((prompts or DEFAULT_PROMPTS).items()):
@@ -56,7 +59,7 @@ def sample_checkpoint(
                 "checkpoint vocabulary is incompatible with the MIDI tokenizer"
             )
         torch.manual_seed(seed + index)
-        prefix = torch.tensor([prompt_ids])
+        prefix = torch.tensor([prompt_ids], device=device)
 
         def grammar(generated, logits):
             allowed = tokenizer.allowed_next_ids(generated[0].tolist())
