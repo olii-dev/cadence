@@ -1,0 +1,5 @@
+{
+  "model": {"vocab_size": 1759, "context_length": 1024, "layers": 12, "heads": 16, "width": 1024, "dropout": 0.1},
+  "training": {"steps": 40000, "micro_batch_size": 8, "gradient_accumulation": 4, "learning_rate": 0.0002, "min_learning_rate": 0.00002, "warmup_steps": 1000, "eval_interval": 500, "eval_batches": 40, "checkpoint_interval": 1000, "seed": 1729},
+  "target": "single Kaggle T4, mixed precision; resumes across sessions from checkpoint dataset"
+}
